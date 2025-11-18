@@ -8,11 +8,6 @@ jobs:
   build_and_push:
     runs-on: ubuntu-latest
 
-    env:
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
     steps:
     - name: Checkout source code
       uses: actions/checkout@v3
@@ -24,18 +19,25 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
+    - name: Get AWS Account ID
+      id: aws
+      run: |
+        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        echo "ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
+
     - name: Login to ECR
       uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Build Docker Image
+    - name: Build Docker image
       run: |
         docker build -t node-backend:${{ github.sha }} .
 
-    - name: Tag Image
+    - name: Tag Docker image
       run: |
         docker tag node-backend:${{ github.sha }} \
-        <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/node-backend:${{ github.sha }}
+        ${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/node-backend:${{ github.sha }}
 
-    - name: Push Image
+    - name: Push Docker image to ECR
       run: |
-        docker push <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/node-backend:${{ github.sha }}
+        docker push \
+        ${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/node-backend:${{ github.sha }}

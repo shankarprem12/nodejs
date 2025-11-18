@@ -30,14 +30,14 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t node-backend:${{ github.sha }} .
+        docker build -t backend-eks:${{ github.sha }} .
 
     - name: Tag Docker image
       run: |
-        docker tag node-backend:${{ github.sha }} \
-        ${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/node-backend:${{ github.sha }}
+        docker tag backend-eks:${{ github.sha }} \
+        ${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/backend-eks:${{ github.sha }}
 
     - name: Push Docker image to ECR
       run: |
         docker push \
-        ${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/node-backend:${{ github.sha }}
+        ${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/backend-eks:${{ github.sha }}

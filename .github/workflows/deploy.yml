@@ -5,11 +5,11 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build_and_push:
+  build_and_deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout source code
+    - name: Checkout code
       uses: actions/checkout@v3
 
     - name: Configure AWS credentials
@@ -25,19 +25,37 @@ jobs:
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
         echo "ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
 
-    - name: Login to ECR
+    - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Build Docker image
-      run: |
-        docker build -t backend-eks:${{ github.sha }} .
+    - name: Build Docker Image
+      run: docker build -t backend-eks:${{ github.sha }} .
 
-    - name: Tag Docker image
+    - name: Tag Image
       run: |
         docker tag backend-eks:${{ github.sha }} \
         ${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/backend-eks:${{ github.sha }}
 
-    - name: Push Docker image to ECR
+    - name: Push Image
       run: |
         docker push \
         ${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/backend-eks:${{ github.sha }}
+
+    # ---------------------------
+    # 🔥 EKS DEPLOYMENT SECTION
+    # ---------------------------
+
+    - name: Update kubeconfig (connect to EKS)
+      run: |
+        aws eks update-kubeconfig \
+          --region us-east-1 \
+          --name ${{ secrets.CLUSTER_NAME }}
+
+    - name: Update deployment image
+      run: |
+        kubectl set image deployment/backend-deployment \
+        backend=${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/backend-eks:${{ github.sha }}
+
+    - name: Apply Kubernetes manifests
+      run: |
+        kubectl apply -f k8s/

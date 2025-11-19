@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend-deployment
+  namespace: prod
 spec:
   replicas: 1
   selector:
@@ -14,6 +15,6 @@ spec:
     spec:
       containers:
         - name: backend
-          image: 587542452178.dkr.ecr.us-east-1.amazonaws.com/backend-eks:latest
+          image: REPLACE_ME   # Image will be injected by GitHub Actions
           ports:
             - containerPort: 3000

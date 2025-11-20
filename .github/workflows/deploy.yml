@@ -9,9 +9,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # ---------------------------
+    # 1️⃣ Checkout Repository
+    # ---------------------------
     - name: Checkout code
       uses: actions/checkout@v3
 
+    # ---------------------------
+    # 2️⃣ Configure AWS Creds
+    # ---------------------------
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
@@ -19,43 +25,80 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
+    # ---------------------------
+    # 3️⃣ Get AWS Account ID
+    # ---------------------------
     - name: Get AWS Account ID
       id: aws
       run: |
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
         echo "ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
 
+    # ---------------------------
+    # 4️⃣ Login to ECR
+    # ---------------------------
     - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v1
 
+    # ---------------------------
+    # 5️⃣ Build Docker Image
+    # ---------------------------
     - name: Build Docker Image
       run: docker build -t backend-eks:${{ github.sha }} .
 
+    # ---------------------------
+    # 6️⃣ Tag Docker Image
+    # ---------------------------
     - name: Tag Image
       run: |
         docker tag backend-eks:${{ github.sha }} \
         ${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/backend-eks:${{ github.sha }}
 
+    # ---------------------------
+    # 7️⃣ Push Docker Image
+    # ---------------------------
     - name: Push Image
       run: |
         docker push \
         ${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/backend-eks:${{ github.sha }}
 
     # ---------------------------
-    # 🔥 EKS DEPLOYMENT SECTION
+    # 8️⃣ Connect to EKS Cluster
     # ---------------------------
-
     - name: Update kubeconfig (connect to EKS)
       run: |
         aws eks update-kubeconfig \
           --region us-east-1 \
           --name ${{ secrets.CLUSTER_NAME }}
 
+    # ---------------------------
+    # 9️⃣ Apply Namespace (important)
+    # ---------------------------
+    - name: Apply Namespace
+      run: |
+        kubectl apply -f k8s/namespace.yaml
+
+    # ---------------------------
+    # 🔟 Apply Manifests BEFORE image update
+    # ---------------------------
+    - name: Apply Kubernetes Manifests
+      run: |
+        kubectl apply -f k8s/deployment.yaml
+        kubectl apply -f k8s/service.yaml
+        kubectl apply -f k8s/ingress.yaml
+
+    # ---------------------------
+    # 1️⃣1️⃣ Update Deployment Image (AFTER it exists)
+    # ---------------------------
     - name: Update deployment image
       run: |
         kubectl set image deployment/backend-deployment \
-        backend=${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/backend-eks:${{ github.sha }}
+        backend=${{ env.ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/backend-eks:${{ github.sha }} \
+        -n prod
 
-    - name: Apply Kubernetes manifests
+    # ---------------------------
+    # 1️⃣2️⃣ Verify Rollout
+    # ---------------------------
+    - name: Verify rollout
       run: |
-        kubectl apply -f k8s/
+        kubectl rollout status deployment/backend-deployment -n prod
